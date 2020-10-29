@@ -15,12 +15,19 @@ use \Magento\Checkout\Controller\Express\RedirectLoginInterface;
 
 abstract class AbstractStandard extends Action
 {
-  /**
-   * Config 
-   *
-   * @var string
-   */
-  protected $_config;
+
+    /**
+     * Config
+     *
+     * @var \ZipMoney\ZipMoneyPayment\Model\Config
+     */
+    protected $_config;
+
+    /**
+     * @var string
+     */
+    protected $_api;
+
   /**
    * @var \Magento\Quote\Model\Quote
    */
@@ -127,6 +134,11 @@ abstract class AbstractStandard extends Action
   protected $_quoteCollectionFactory;
 
   /**
+   * @var \Magento\Quote\Model\ResourceModel\Quote\Payment\CollectionFactory
+   */
+  protected $_quotePaymentCollectionFactory;
+
+  /**
    * @var \Magento\Checkout\Model\PaymentInformationManagement
    */
   protected $_paymentInformationManagement;
@@ -141,44 +153,50 @@ abstract class AbstractStandard extends Action
    */
   protected $_pageFactory;
 
+  const CHECKOUT_ID_KEY = 'id';
+
   /**
    * Common Route
    *
    * @const
    */
   const ZIPMONEY_STANDARD_ROUTE = "zipmoneypayment/standard";
-  
+
   /**
    * Error Route
    *
    * @const
    */
   const ZIPMONEY_ERROR_ROUTE = "zipmoneypayment/standard/error";
- 
+
   public function __construct(
-    \Magento\Framework\App\Action\Context $context,       
+    \Magento\Framework\App\Action\Context $context,
     \Magento\Framework\View\Result\PageFactory $pageFactory,
     \Magento\Checkout\Model\Session $checkoutSession,
     \Magento\Customer\Model\Session $customerSession,
     \Magento\Sales\Model\OrderFactory $orderFactory,
     \Magento\Framework\Url\Helper\Data $urlHelper,
-    \Magento\Customer\Model\Url $customerUrl, 
+    \Magento\Customer\Model\Url $customerUrl,
     \Magento\Framework\Json\Helper\Data $jsonHelper,
     \Magento\Checkout\Model\PaymentInformationManagement $paymentInformationManagement,
     \Magento\Quote\Api\CartRepositoryInterface $quoteRepository,
     \Magento\Quote\Model\ResourceModel\Quote\CollectionFactory $quoteCollectionFactory,
+    \Magento\Quote\Model\ResourceModel\Quote\Payment\CollectionFactory $quotePaymentCollectionFactory,
     \ZipMoney\ZipMoneyPayment\Helper\Logger $logger,
     \ZipMoney\ZipMoneyPayment\Helper\Data $helper,
-    \ZipMoney\ZipMoneyPayment\Model\Checkout\Factory $checkoutFactory
+    \ZipMoney\ZipMoneyPayment\Model\Checkout\Factory $checkoutFactory,
+    \ZipMoney\ZipMoneyPayment\Model\Config $config,
+    \zipMoney\Api\CheckoutsApi $checkoutsApi
   ) {
 
-    $this->_pageFactory = $pageFactory;    
+    $this->_pageFactory = $pageFactory;
 
     $this->_checkoutSession = $checkoutSession;
     $this->_customerSession = $customerSession;
     $this->_orderFactory = $orderFactory;
     $this->_quoteRepository = $quoteRepository;
     $this->_quoteCollectionFactory = $quoteCollectionFactory;
+    $this->_quotePaymentCollectionFactory = $quotePaymentCollectionFactory;
     $this->_urlHelper = $urlHelper;
     $this->_urlBuilder = $context->getUrl();
     $this->_customerUrl = $customerUrl;
@@ -190,8 +208,9 @@ abstract class AbstractStandard extends Action
     $this->_checkoutFactory = $checkoutFactory;
 
     $this->_messageManager = $context->getMessageManager();
+    $this->_config = $config;
+    $this->_api = $checkoutsApi;
 
-    
     parent::__construct($context);
   }
 
@@ -289,14 +308,47 @@ abstract class AbstractStandard extends Action
    */
   protected function _getDbQuote($zipmoney_checkout_id)
   {
+    // when magento receive response from zip checkout api
+    //we store zipmoney checkout id to quote_payment addtional_data
     if ($zipmoney_checkout_id) {
-      $this->_quote = $this->_quoteCollectionFactory
-                            ->create()
-                            ->addFieldToFilter("zipmoney_checkout_id", $zipmoney_checkout_id)
-                            ->getFirstItem();
+          $quotePayment = $this->_quotePaymentCollectionFactory
+              ->create()
+              ->addFieldToFilter("additional_data", $zipmoney_checkout_id)
+              ->getFirstItem();
+          $this->_quote = $this->_quoteCollectionFactory
+              ->create()
+              ->addFieldToFilter("entity_id", $quotePayment['quote_id'])
+              ->getFirstItem();
       return $this->_quote;
     }
   }
+
+    /**
+     * @param $zip_checkout_id
+     * @return false|\Magento\Framework\DataObject|\Magento\Quote\Model\Quote
+     * Retrieve quote details by using zip checkout get api call
+     */
+    protected function _getQuoteByUsingCheckoutApi($zip_checkout_id)
+    {
+        // Configure API Credentials
+        $apiConfig = \zipMoney\Configuration::getDefaultConfiguration();
+
+        $apiConfig->setApiKey('Authorization', $this->_config->getMerchantPrivateKey())
+            ->setApiKeyPrefix('Authorization', 'Bearer')
+            ->setEnvironment($this->_config->getEnvironment())
+            ->setPlatform("Magento/".$this->_helper->getMagentoVersion()."ZipMoney_ZipMoneyPayment/".$this->_helper->getExtensionVersion());
+        $checkout = $this->_api->checkoutsGet($zip_checkout_id);
+        if (!isset($checkout[self::CHECKOUT_ID_KEY])) {
+            return false;
+        }
+
+        $quoteId = $checkout->getOrder()->getCartReference();
+        $this->_quote = $this->_quoteCollectionFactory
+            ->create()
+            ->addFieldToFilter("entity_id", $quoteId)
+            ->getFirstItem();
+        return $this->_quote;
+    }
 
   /**
    * Return checkout quote object
@@ -359,43 +411,44 @@ abstract class AbstractStandard extends Action
 
   /**
    * Checks if the Session Quote is valid, if not use the db quote.
-   *   
-   * @return \Magento\Quote\Model\Quote 
+   *
+   * @return \Magento\Quote\Model\Quote
    */
   protected function _retrieveQuote()
   {
     $sessionQuote = $this->_getCheckoutSession()->getQuote();
     $zipMoneyCheckoutId  = $this->getRequest()->getParam('checkoutId');
-    $use_db_quote = false;
-
+    $use_checkout_api_quote = false;
+    $addtionalPaymentInfo = $sessionQuote->getPayment()->getAdditionalInformation();
+    $checkout_id = $addtionalPaymentInfo['zipmoney_checkout_id'];
     // Return Session Quote
     if(!$sessionQuote){
       $this->_logger->error(__("Session Quote doesnot exist."));
-      $use_db_quote = true;
-    } else if($sessionQuote->getZipmoneyCheckoutId() != $zipMoneyCheckoutId){
+      $use_checkout_api_quote = true;
+    } else if($checkout_id != $zipMoneyCheckoutId){
       $this->_logger->error(__("Checkout Id doesnot match with the session quote."));
-      $use_db_quote = true;
+      $use_checkout_api_quote = true;
     } else {
       return $sessionQuote;
     }
 
     //Retrurn DB Quote
-    if($use_db_quote){
-      $dbQuote = $this->_getDbQuote($zipMoneyCheckoutId);
-      if(!$dbQuote){
+    if($use_checkout_api_quote){
+      $checkoutApiQuote = $this->_getQuoteByUsingCheckoutApi($zipMoneyCheckoutId);
+      if(!$checkoutApiQuote){
         $this->_logger->warn(__("Quote doesnot exist for the given checkout_id."));
         return false;
       } else {
         $this->_logger->info(__("Loading DB Quote"));
       }
-      return $dbQuote;
+      return $checkoutApiQuote;
     }
   }
 
   /**
    * Checks if the Customer is valid for the quote
-   *   
-   * @param \Magento\Quote\Model\Quote $quote 
+   *
+   * @param \Magento\Quote\Model\Quote $quote
    */
   protected function _verifyCustomerForQuote($quote)
   {
