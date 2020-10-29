@@ -300,28 +300,7 @@ abstract class AbstractStandard extends Action
 
     return $this;
   }
-
-  /**
-   * Return checkout quote object from database
-   *
-   * @return \ZipMoney\ZipMoneyPayment\Controller\Standard\AsbtractStandard
-   */
-  protected function _getDbQuote($zipmoney_checkout_id)
-  {
-    // when magento receive response from zip checkout api
-    //we store zipmoney checkout id to quote_payment addtional_data
-    if ($zipmoney_checkout_id) {
-          $quotePayment = $this->_quotePaymentCollectionFactory
-              ->create()
-              ->addFieldToFilter("additional_data", $zipmoney_checkout_id)
-              ->getFirstItem();
-          $this->_quote = $this->_quoteCollectionFactory
-              ->create()
-              ->addFieldToFilter("entity_id", $quotePayment['quote_id'])
-              ->getFirstItem();
-      return $this->_quote;
-    }
-  }
+  
 
     /**
      * @param $zip_checkout_id
