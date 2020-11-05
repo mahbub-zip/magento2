@@ -124,7 +124,6 @@ class Checkout extends AbstractCheckout
       $additionalPaymentInfo['zipmoney_checkout_id'] = $this->_checkoutId;
       $this->_quote->getPayment()->setAdditionalInformation($additionalPaymentInfo);
       $this->_quoteRepository->save($this->_quote);
-
       $this->_redirectUrl = $checkout->getUri();      
     } catch(\zipMoney\ApiException $e){
       $this->_logger->debug("Errors:- ".json_encode($e->getResponseBody()));

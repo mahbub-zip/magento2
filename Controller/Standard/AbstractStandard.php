@@ -27,7 +27,7 @@ abstract class AbstractStandard extends Action
      * @var string
      */
     protected $_api;
-
+  
   /**
    * @var \Magento\Quote\Model\Quote
    */
@@ -63,7 +63,7 @@ abstract class AbstractStandard extends Action
   /**
    * @var \Magento\Checkout\Model\Session
    */
-  protected $_checkoutSession; 
+  protected $_checkoutSession;
 
   /**
    * @var \Magento\Customer\Model\Session
@@ -73,11 +73,11 @@ abstract class AbstractStandard extends Action
   /**
    * @var \Magento\Sales\Model\OrderFactory
    */
-  protected $_orderFactory;  
+  protected $_orderFactory;
   /**
    * @var \Magento\Quote\Api\CartRepositoryInterface
    */
-  protected $_quoteRepository;  
+  protected $_quoteRepository;
 
   /**
    * @var \Magento\Framework\Url\Helper
@@ -85,7 +85,7 @@ abstract class AbstractStandard extends Action
   protected $_urlHelper;
 
   /**
-   * @var \Magento\Framework\UrlInterface 
+   * @var \Magento\Framework\UrlInterface
    */
   protected $_urlBuilder;
 
@@ -93,7 +93,7 @@ abstract class AbstractStandard extends Action
    * @var \Magento\Customer\Model\Url
    */
   protected $_customerUrl;
-  
+
   /**
    * @var \ZipMoney\ZipMoneyPayment\Helper\Order
    */
@@ -112,12 +112,12 @@ abstract class AbstractStandard extends Action
    * @var \ZipMoney\ZipMoneyPayment\Helper\Data
    */
   protected $_helper;
-  
+
   /**
    * @var \ZipMoney\ZipMoneyPayment\Model\Standard\
    */
   protected $_checkoutFactory;
-  
+
   /**
    * @var \ZipMoney\ZipMoneyPayment\Model\Checkout
    */
@@ -210,7 +210,6 @@ abstract class AbstractStandard extends Action
     $this->_messageManager = $context->getMessageManager();
     $this->_config = $config;
     $this->_api = $checkoutsApi;
-
     parent::__construct($context);
   }
 
@@ -221,9 +220,9 @@ abstract class AbstractStandard extends Action
    * @throws \Magento\Framework\Exception\LocalizedException
    */
   protected function _initCheckout()
-  {   
+  {
     $quote = $this->_getQuote();
-  
+
     if(!$quote->getId()){
       throw new \Magento\Framework\Exception\LocalizedException(__('Quote doesnot exist'));
     }
@@ -254,7 +253,7 @@ abstract class AbstractStandard extends Action
     if (!$quote->hasItems() || $quote->getHasError()) {
       throw new \Magento\Framework\Exception\LocalizedException(__('Quote has error or no items.'));
     }
-    
+
     return $this->_charge = $this->_checkoutFactory
                             ->create($this->_chargeModel);
   }
@@ -267,7 +266,7 @@ abstract class AbstractStandard extends Action
   protected function _getCheckoutSession()
   {
     return $this->_checkoutSession;
-  } 
+  }
 
   /**
    * Return checkout customer session object
@@ -301,7 +300,6 @@ abstract class AbstractStandard extends Action
     return $this;
   }
   
-
     /**
      * @param $zip_checkout_id
      * @return false|\Magento\Framework\DataObject|\Magento\Quote\Model\Quote
@@ -356,7 +354,7 @@ abstract class AbstractStandard extends Action
     }
     return true;
   }
- 
+
   /**
    * Redirects to the cart page.
    *
@@ -455,12 +453,12 @@ abstract class AbstractStandard extends Action
         $customerSession->renewSession();
       }
     }
-    
+
   }
 
   /**
    * Sets quote for the customer.
-   *   
+   *
    * @throws \Magento\Framework\Exception\LocalizedException
    */
   public function _setCustomerQuote()
@@ -512,8 +510,8 @@ abstract class AbstractStandard extends Action
   }
 
   /**
-   * Deactivates the quote 
-   * 
+   * Deactivates the quote
+   *
    * @param \Magento\Quote\Model\Quote $quote
    * @return bool
    */
@@ -592,7 +590,7 @@ abstract class AbstractStandard extends Action
 
    return $url;
   }
-  
+
   /**
    * Return Success  url
    *

@@ -377,9 +377,6 @@ class Charge extends AbstractCheckout
         throw new \Magento\Framework\Exception\LocalizedException(__('Invalid order state or status.'));
       }
 
-    } else {
-      // Check if order has valid state and status
-      $this->_verifyOrderState();
     }
 
     // Check if the transaction exists
@@ -431,14 +428,7 @@ class Charge extends AbstractCheckout
     $invoice = $payment->getCreatedInvoice();
     
     if ($invoice) { 
-      if ($this->_order->getCanSendNewEmailFlag()) {
-        try {
-          $this->_orderSender->send($this->_order);
-        } catch (\Exception $e) {
-          $this->_logger->critical($e);
-        }
-      }   
-
+      
       $this->_order->addStatusHistoryComment($this->_helper->__('Notified customer about invoice #%s.', $invoice->getIncrementId()))
                    ->setIsCustomerNotified(true);
       
@@ -511,9 +501,11 @@ class Charge extends AbstractCheckout
       $this->_logger->debug($this->_helper->__("Charge State:- %s",$charge->getState()));
 
       if($charge->getId()){
-        $payment =  $this->_order->getPayment()
-                     ->setZipmoneyChargeId($charge->getId())
-                     ->setAdditionalInformation(array("receipt_number"=>$charge->getReceiptNumber()));;
+      $additionalPaymentInfo = $this->_order->getPayment()->getAdditionalInformation();
+      $additionalPaymentInfo['receipt_number'] = $charge->getReceiptNumber();
+      $additionalPaymentInfo['zipmoney_charge_id'] = $charge->getId();
+      $payment =  $this->_order->getPayment()
+                     ->setAdditionalInformation($additionalPaymentInfo);
         $this->_orderPaymentRepository->save($payment);
       }
 
@@ -559,6 +551,12 @@ class Charge extends AbstractCheckout
 
     $this->_ignoreAddressValidation();
     $this->_quote->collectTotals();
+
+    /* set customer email if email is found empty (bug) */
+    if ($this->_quote->getCustomerEmail() === null && $this->_quote->getBillingAddress()->getEmail() !== null) {
+      $this->_quote->setCustomerEmail($this->_quote->getBillingAddress()->getEmail());
+    }
+    
     $order = $this->_quoteManagement->submit($this->_quote);
 
     if ($isNewCustomer) {
