@@ -89,7 +89,7 @@ class HealthCheck
     /**
      * check multiple items and get health result
      */
-    public function getHealthResult($websiteId)
+    public function getHealthResult($websiteId, $apiKey = null, $publicKey = null, $env = null)
     {
         /** @var Curl $curlObject */
         $curlObject = $this->_curlFactory->create();
@@ -99,13 +99,13 @@ class HealthCheck
         $storeManager = $objectManager->create('\Magento\Store\Model\StoreManagerInterface');
 
         $storeId = $storeManager->getWebsite($websiteId)->getDefaultStore()->getId();
-        $publicKey = $this->_config->getMerchantPublicKey($storeId);
-        $privateKey = $this->_config->getMerchantPrivateKey($storeId);
-        $environment = $this->_config->getEnvironment($storeId);
+        $publicKey = $publicKey ?? $this->_config->getMerchantPublicKey($storeId);
+        $privateKey = $apiKey ?? $this->_config->getMerchantPrivateKey($storeId);
+        $environment = $env ?? $this->_config->getEnvironment($storeId);
         if (empty($websiteId)) {
-            $publicKey = $this->_config->getDefaultMerchantPublicKey();
-            $privateKey = $this->_config->getDefaultMerchantPrivateKey();
-            $environment = $this->_config->getDefaultEnvironment();
+            $publicKey = $publicKey ?? $this->_config->getDefaultMerchantPublicKey();
+            $privateKey = $apiKey ?? $this->_config->getDefaultMerchantPrivateKey();
+            $environment = $env ?? $this->_config->getDefaultEnvironment();
         }
         $apiConfig->setApiKey('Authorization', $privateKey)
             ->setApiKeyPrefix('Authorization', 'Bearer')
@@ -135,8 +135,6 @@ class HealthCheck
             $curlObject->setConfig(
                 array(
                     'timeout' => 10,
-                    'verifypeer' => 0,
-                    'verifyhost' => 0,
                 )
             );
 
@@ -152,7 +150,6 @@ class HealthCheck
                     'Content-Type: application/json',
                     'Idempotency-Key: ' . uniqid()
                 );
-
                 $checkoutId = 'au-co_PxSeQfLlpaYn6bLMZSMv13';
                 $url = $apiConfig->getHost() . '/checkouts/' . $checkoutId;
                 $curlObject->write(\Zend_Http_Client::GET, $url, '1.1', $headers);
